@@ -1,0 +1,30 @@
+#!/usr/bin/make -f
+
+DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+# move modsec-rules-check (lib debugging/testing tool) to libexec to avoid
+# an extra package while keeping the library package multiarch
+CONFIGURE_EXTRA_FLAGS += --bindir=\$${prefix}/lib/$(DEB_HOST_MULTIARCH)/libexec --without-lmdb
+
+# pass TERM env to regression test, avoid to kept it after build
+export TERM=$(shell if [ -z $TERM ]; then echo "linux"; else echo $TERM; fi)
+
+%:
+	dh $@
+
+override_dh_clean:
+	dh_clean
+	rm -f config.log
+	rm -rf debian/examples
+
+override_dh_auto_configure:
+	dh_auto_configure -- $(CONFIGURE_EXTRA_FLAGS)
+	cp -Rp examples debian/examples
+
+override_dh_auto_install:
+	dh_auto_install
+	# clean dependency_libs in .la files (Policy 10.2)
+	sed -i "/dependency_libs/ s/'.*'/''/" $$(find debian/tmp/ -name '*.la')
+
+override_dh_installexamples:
+	dh_installexamples
+	rm -rf debian/examples

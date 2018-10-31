@@ -1,0 +1,20 @@
+modsecurity (3.0.2-2) unstable; urgency=medium
+
+  * Add TERM environment variable for the regression tests
+  * Renamed d/libmodsecuity-docs.docs to d/libmodsecurity-dev.docs
+  * Removed nonexistend files from d/libmodsecurity-dev.docs
+  * Aded README.md to d/libmodsecurity-dev.docs
+  * Fixed .so pattern in d/libmodsecurity-dev.install
+  * Added ${shlibs:Depends} to libmodsecurity-dev Depends field (libc6)
+  * Added examples for libmodsecurity (through dh_installexamples)
+  * Add --without-lmdb to prevent linking with lmbd if it's installed
+  * Add --enable-doxygen-chm and --enable-doxygen-chi args to autoconf
+    to generate documents
+
+ -- Ervin Hegedus <airween@gmail.com>  Wed, 31 Oct 2018 21:52:25 +0000
+
+modsecurity (3.0.2-1) unstable; urgency=medium
+
+  * Initial release (Closes: #909025)
+
+ -- Alberto Gonzalez Iniesta <agi@inittab.org>  Mon, 17 Sep 2018 13:16:27 +0200
