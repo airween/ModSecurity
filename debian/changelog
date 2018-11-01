@@ -8,8 +8,6 @@ modsecurity (3.0.2-2) unstable; urgency=medium
   * Added ${shlibs:Depends} to libmodsecurity-dev Depends field (libc6)
   * Added examples for libmodsecurity (through dh_installexamples)
   * Add --without-lmdb to prevent linking with lmbd if it's installed
-  * Add --enable-doxygen-chm and --enable-doxygen-chi args to autoconf
-    to generate documents
 
  -- Ervin Hegedus <airween@gmail.com>  Wed, 31 Oct 2018 21:52:25 +0000
 
