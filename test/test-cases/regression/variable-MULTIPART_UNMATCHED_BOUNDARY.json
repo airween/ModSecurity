@@ -1,18 +1,18 @@
-[  
-  {  
+[
+  {
     "enabled":1,
     "version_min":300000,
     "title":"Testing Variables :: MULTIPART_UNMATCHED_BOUNDARY",
-    "client":{  
+    "client":{
       "ip":"200.249.12.31",
       "port":123
     },
-    "server":{  
+    "server":{
       "ip":"200.249.12.31",
       "port":80
     },
-    "request":{  
-      "headers":{  
+    "request":{
+      "headers":{
         "Host":"localhost",
         "User-Agent":"curl/7.38.0",
         "Accept":"*/*",
@@ -22,56 +22,56 @@
       },
       "uri":"/",
       "method":"POST",
-      "body":[  
-        "--------------------------756b6d74fa1a8ee2",
-        "Content-Disposition: form-data; name=\"name\"",
-        "",
-        "test",
-        "--------------------------756b6d74fa1a8ee2",
-        "Content-Disposition: form-data; name=\"filedata\"; filename=\"small_text_file.txt\"",
-        "Content-Type: text/plain",
-        "",
-        "This is a very small test file..",
-        "--------------------------756b6d74fa1a8ee2",
-        "Content-Disposition: form-data; name=\"filedata\"; filename=\"small_text_file.txt\"",
-        "Content-Type: text/plain",
-        "",
-        "This is another very small test file..",
-        ""
+      "body":[
+        "--------------------------756b6d74fa1a8ee2\r",
+        "Content-Disposition: form-data; name=\"name\"\r",
+        "\r",
+        "test\r",
+        "--------------------------756b6d74fa1a8ee2\r",
+        "Content-Disposition: form-data; name=\"filedata\"; filename=\"small_text_file.txt\"\r",
+        "Content-Type: text/plain\r",
+        "\r",
+        "This is a very small test file..\r",
+        "--------------------------756b6d74fa1a8ee2\r",
+        "Content-Disposition: form-data; name=\"filedata\"; filename=\"small_text_file.txt\"\r",
+        "Content-Type: text/plain\r",
+        "\r",
+        "This is another very small test file..\r",
+        "\r"
       ]
     },
-    "response":{  
-      "headers":{  
+    "response":{
+      "headers":{
         "Date":"Mon, 13 Jul 2015 20:02:41 GMT",
         "Last-Modified":"Sun, 26 Oct 2014 22:33:37 GMT",
         "Content-Type":"text/html"
       },
-      "body":[  
+      "body":[
         "no need."
       ]
     },
-    "expected":{  
+    "expected":{
       "debug_log":"Target value: \"1\" \\(Variable: MULTIPART_UNMATCHED_BOUNDARY\\)"
     },
-    "rules":[  
+    "rules":[
       "SecRuleEngine On",
       "SecRule MULTIPART_UNMATCHED_BOUNDARY \"@contains small_text_file.txt\" \"id:1,phase:3,pass,t:trim\""
     ]
   },
-  {  
+  {
     "enabled":1,
     "version_min":300000,
-    "title":"Testing Variables :: MULTIPART_UNMATCHED_BOUNDARY - DENY",
-    "client":{  
+    "title":"Testing Variables :: MULTIPART_UNMATCHED_BOUNDARY - DENY (perm. mode)",
+    "client":{
       "ip":"200.249.12.31",
       "port":123
     },
-    "server":{  
+    "server":{
       "ip":"200.249.12.31",
       "port":80
     },
-    "request":{  
-      "headers":{  
+    "request":{
+      "headers":{
         "Host":"localhost",
         "User-Agent":"curl/7.38.0",
         "Accept":"*/*",
@@ -81,40 +81,101 @@
       },
       "uri":"/",
       "method":"POST",
-      "body":[  
-        "----------------------------756b6d74fa1a8ee2",
-        "Content-Disposition: form-data; name=\"name\"",
-        "",
-        "test",
-        "----------------------------756b6d74fa1a8ee2",
-        "Content-Disposition: form-data; name=\"filedata\"; filename=\"small_text_file.txt\"",
-        "Content-Type: text/plain",
-        "",
-        "This is a very small test file..",
-        "A----------------------------756b6d74fa1a8ee2",
-        "Content-Disposition: form-data; name=\"filedata\"; filename=\"small_text_file.txt\"",
-        "Content-Type: text/plain",
-        "",
-        "This is another very small test file..",
-        "----------------------------756b6d74fa1a8ee2--",
+      "body":[
+        "----------------------------756b6d74fa1a8ee2\r",
+        "Content-Disposition: form-data; name=\"name\"\r",
+        "\r",
+        "test\r",
+        "----------------------------756b6d74fa1a8ee2\r",
+        "Content-Disposition: form-data; name=\"filedata\"; filename=\"small_text_file.txt\"\r",
+        "Content-Type: text/plain\r",
+        "\r",
+        "This is a very small test file..\r",
+        "A----------------------------756b6d74fa1a8ee2\r",
+        "Content-Disposition: form-data; name=\"filedata\"; filename=\"small_text_file.txt\"\r",
+        "Content-Type: text/plain\r",
+        "\r",
+        "This is another very small test file..\r",
+        "----------------------------756b6d74fa1a8ee2--\r",
         ""
       ]
     },
-    "response":{  
-      "headers":{  
+    "response":{
+      "headers":{
         "Date":"Mon, 13 Jul 2015 20:02:41 GMT",
         "Last-Modified":"Sun, 26 Oct 2014 22:33:37 GMT",
         "Content-Type":"text/html"
       },
-      "body":[  
+      "body":[
         "no need."
       ]
     },
-    "expected":{  
+    "expected":{
+      "debug_log":"Target value: \"2\" \\(Variable: MULTIPART_UNMATCHED_BOUNDARY\\)",
+      "http_code": 403
+    },
+    "rules":[
+      "SecRuleEngine On",
+      "SecRule MULTIPART_UNMATCHED_BOUNDARY \"!@eq 0\" \"id:1,phase:2,deny,t:none\""
+    ]
+  },
+  {
+    "enabled":1,
+    "version_min":300000,
+    "title":"Testing Variables :: MULTIPART_UNMATCHED_BOUNDARY - DENY (strict mode)",
+    "client":{
+      "ip":"200.249.12.31",
+      "port":123
+    },
+    "server":{
+      "ip":"200.249.12.31",
+      "port":80
+    },
+    "request":{
+      "headers":{
+        "Host":"localhost",
+        "User-Agent":"curl/7.38.0",
+        "Accept":"*/*",
+        "Content-Length":"330",
+        "Content-Type":"multipart/form-data; boundary=--------------------------756b6d74fa1a8ee2",
+        "Expect":"100-continue"
+      },
+      "uri":"/",
+      "method":"POST",
+      "body":[
+        "----------------------------756b6d74fa1a8ee3\r",
+        "Content-Disposition: form-data; name=\"name\"\r",
+        "\r",
+        "test\r",
+        "----------------------------756b6d74fa1a8ee4\r",
+        "Content-Disposition: form-data; name=\"filedata\"; filename=\"small_text_file.txt\"\r",
+        "Content-Type: text/plain\r",
+        "\r",
+        "This is a very small test file..\r",
+        "----------------------------756b6d74fa1a8ee5\r",
+        "Content-Disposition: form-data; name=\"filedata\"; filename=\"small_text_file.txt\"\r",
+        "Content-Type: text/plain\r",
+        "\r",
+        "This is another very small test file..\r",
+        "----------------------------756b6d74fa1a8ee6--\r",
+        "\r"
+      ]
+    },
+    "response":{
+      "headers":{
+        "Date":"Mon, 13 Jul 2015 20:02:41 GMT",
+        "Last-Modified":"Sun, 26 Oct 2014 22:33:37 GMT",
+        "Content-Type":"text/html"
+      },
+      "body":[
+        "no need."
+      ]
+    },
+    "expected":{
       "debug_log":"Target value: \"1\" \\(Variable: MULTIPART_UNMATCHED_BOUNDARY\\)",
       "http_code": 403
     },
-    "rules":[  
+    "rules":[
       "SecRuleEngine On",
       "SecRule MULTIPART_UNMATCHED_BOUNDARY \"@eq 1\" \"id:1,phase:2,deny,t:none\""
     ]
