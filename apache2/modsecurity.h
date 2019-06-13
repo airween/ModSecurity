@@ -690,6 +690,14 @@ struct msc_arg {
     unsigned int             value_origin_offset;
     unsigned int             value_origin_len;
     const char              *origin;
+    const char              *name_raw;
+    unsigned int             name_raw_len;
+    unsigned int             name_raw_origin_offset;
+    unsigned int             name_raw_origin_len;
+    const char              *value_raw;
+    unsigned int             value_raw_len;
+    unsigned int             value_raw_origin_offset;
+    unsigned int             value_raw_origin_len;
 };
 
 struct msc_string {

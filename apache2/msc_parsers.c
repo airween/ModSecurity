@@ -273,9 +273,11 @@ int parse_arguments(modsec_rec *msr, const char *s, apr_size_t inputlength,
             }
             buf[j++] = '\0';
             arg->name_origin_len = i - arg->name_origin_offset;
+            arg->name_raw_origin_len = arg->name_origin_len;
         } else {
             /* parameter value */
             arg->value_origin_offset = i;
+            arg->value_raw_origin_offset = i;
             while ((s[i] != argument_separator) && (i < inputlength)) {
                 buf[j] = s[i];
                 j++;
@@ -283,16 +285,22 @@ int parse_arguments(modsec_rec *msr, const char *s, apr_size_t inputlength,
             }
             buf[j++] = '\0';
             arg->value_origin_len = i - arg->value_origin_offset;
+            arg->value_raw_origin_len = arg->value_origin_len;
         }
 
         if (status == 0) {
+            arg->name_raw_len = strlen(buf);
+            arg->name_raw = apr_pstrmemdup(msr->mp, buf, arg->name_raw_len);
             arg->name_len = urldecode_nonstrict_inplace_ex((unsigned char *)buf, arg->name_origin_len, invalid_count, &changed);
             arg->name = apr_pstrmemdup(msr->mp, buf, arg->name_len);
+
 
             if (s[i] == argument_separator) {
                 /* Empty parameter */
                 arg->value_len = 0;
                 arg->value = "";
+                arg->value_raw_len = 0;
+                arg->value_raw = "";
 
                 add_argument(msr, arguments, arg);
 
@@ -307,6 +315,8 @@ int parse_arguments(modsec_rec *msr, const char *s, apr_size_t inputlength,
             }
         }
         else {
+            arg->value_raw_len = strlen(value);
+            arg->value_raw = apr_pstrmemdup(msr->mp, value, arg->value_raw_len);
             arg->value_len = urldecode_nonstrict_inplace_ex((unsigned char *)value, arg->value_origin_len, invalid_count, &changed);
             arg->value = apr_pstrmemdup(msr->mp, value, arg->value_len);
 
@@ -326,6 +336,8 @@ int parse_arguments(modsec_rec *msr, const char *s, apr_size_t inputlength,
     if (status == 1) {
         arg->value_len = 0;
         arg->value = "";
+        arg->value_raw_len = 0;
+        arg->value_raw = "";
 
         add_argument(msr, arguments, arg);
     }
@@ -341,9 +353,11 @@ int parse_arguments(modsec_rec *msr, const char *s, apr_size_t inputlength,
 void add_argument(modsec_rec *msr, apr_table_t *arguments, msc_arg *arg)
 {
     if (msr->txcfg->debuglog_level >= 5) {
-        msr_log(msr, 5, "Adding request argument (%s): name \"%s\", value \"%s\"",
+        msr_log(msr, 5, "Adding request argument (%s): name \"%s\", value \"%s\", raw name \"%s\", raw value: \"%s\"",
                 arg->origin, log_escape_ex(msr->mp, arg->name, arg->name_len),
-                log_escape_ex(msr->mp, arg->value, arg->value_len));
+                log_escape_ex(msr->mp, arg->value, arg->value_len),
+                log_escape_ex(msr->mp, arg->name_raw, arg->name_raw_len),
+                log_escape_ex(msr->mp, arg->value_raw, arg->value_raw_len));
     }
 
     apr_table_addn(arguments, log_escape_nq_ex(msr->mp, arg->name, arg->name_len), (void *)arg);
