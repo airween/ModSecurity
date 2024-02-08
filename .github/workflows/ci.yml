@@ -38,4 +38,7 @@ jobs:
           sudo mkdir -p /var/cache/modsecurity
           sudo chown -R www-data:www-data /var/cache/modsecurity
       - name: start apache with module
-        run: sudo systemctl restart apache2.service
+        run: |
+          sudo systemctl restart apache2.service
+          sudo systemctl status apache2.service
+          sudo journalctl -xeu apache2.service
