@@ -35,11 +35,10 @@ jobs:
         run: |
           sudo cp .github/security2.conf /etc/apache2/mods-enabled/
           sudo cp modsecurity.conf-recommended /etc/apache2/modsecurity.conf
+          sudo cp unicode.mapping /etc/apache2/
           sudo mkdir -p /var/cache/modsecurity
           sudo chown -R www-data:www-data /var/cache/modsecurity
       - name: start apache with module
         run: |
           sudo systemctl restart apache2.service
-          sudo cat /var/log/apache2/error.log
-          sudo systemctl status apache2.service
-          sudo journalctl -xeu apache2.service
+
