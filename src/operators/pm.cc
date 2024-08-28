@@ -54,7 +54,7 @@ static inline std::string parse_pm_content(const std::string &op_parm) {
             esc = true;
         } else {
             if (bin) {
-                if (VALID_HEX(*s)) {
+                if (modsecurity::utils::string::VALID_HEX(*s)) {
                     bin_parm[bin_offset] = (char)*s;
                     bin_offset++;
                     if (bin_offset == 2) {
