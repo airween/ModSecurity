@@ -201,6 +201,56 @@ int expand_macros(modsec_rec *msr, msc_string *var, msre_rule *rule, apr_pool_t 
         text_start = next_text_start;
         p = strstr(text_start, "%");
         if (p != NULL) {
+            // check for embedded macros
+            char *embedded_macro = strstr(p + 1, "%");
+            if (embedded_macro != NULL) {
+                if ((*(embedded_macro + 1) == '{')&&(*(embedded_macro + 2) != '\0')) {
+                    char *var_start = embedded_macro;
+
+                    char * et = var_start;
+                    // Find the end of the embedded macro.
+                    while((*et != '\0')&&(*et != '}')) et++;
+                    if (*et == '}') {
+                        // Found embedded macro, resolve it and replace in the string.
+                        char *embedded_macro_name = apr_pstrmemdup(mptmp, var_start, et - var_start + 1);
+                        msr_log(msr, 9, "Expand macros: found embedded var: \"%s\"",
+                            log_escape_ex(mptmp, embedded_macro_name, et - var_start + 1)
+                        );
+                        msc_string * embedded_var = (msc_string *)apr_pcalloc(mptmp, sizeof(msc_string));
+                        embedded_var->value = apr_pstrdup(mptmp, embedded_macro_name);
+                        embedded_var->value_len = strlen(embedded_var->value);
+                        expand_macros(msr, embedded_var, rule, mptmp);
+                        msr_log(msr, 9, "Expand macros: resolved embedded var \"%s\" to \"%s\"",
+                            log_escape_ex(mptmp, embedded_macro_name, et - var_start + 1),
+                            log_escape_ex(mptmp, embedded_var->value, embedded_var->value_len)
+                        );
+                        // Replace the embedded macro in data with the resolved value.
+                        char * new_data = apr_pstrcat(mptmp,
+                            apr_pstrndup(mptmp, data, var_start - data),
+                            embedded_var->value,
+                            apr_pstrdup(mptmp, et + 1),
+                            NULL
+                        );
+                        size_t embedded_offset = text_start - data;
+                        size_t old_p_offset = p - data;
+                        data = new_data;
+                        text_start = data + embedded_offset;
+                        var->value = data;
+                        var->value_len = strlen(var->value);
+                        p = data + old_p_offset;
+                    }
+                    else {
+                        msr_log(msr, 1, "Expand macros: embedded macro appears to be unterminated: \"%s\"",
+                            log_escape_ex(mptmp, embedded_macro, strlen(embedded_macro))
+                        );
+                    }
+                }
+                else {
+                    msr_log(msr, 1, "Expand macros: found embedded '%%' but it does not appear to be a valid macro: \"%s\"",
+                        log_escape_ex(mptmp, embedded_macro, strlen(embedded_macro))
+                    );
+                }
+            }
             char *var_name = NULL;
             char *var_value = NULL;
 
