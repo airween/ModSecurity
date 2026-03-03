@@ -184,6 +184,8 @@ int expand_macros(modsec_rec *msr, msc_string *var, msre_rule *rule, apr_pool_t 
     char *text_start = NULL, *next_text_start = NULL;
     msc_string *part = NULL;
     int i, offset = 0;
+    msc_string *tvar = NULL;
+    msc_string *lasttvar = NULL;
 
     if (var->value == NULL) return 0;
 
@@ -192,130 +194,161 @@ int expand_macros(modsec_rec *msr, msc_string *var, msre_rule *rule, apr_pool_t 
      *      no macros in the input data.
      */
 
-    data = apr_pstrdup(mptmp, var->value); /* IMP1 Are we modifying data anywhere? */
-    arr = apr_array_make(mptmp, 16, sizeof(msc_string *));
-    if ((data == NULL)||(arr == NULL)) return -1;
-
-    text_start = next_text_start = data;
+    if (msr->txcfg->debuglog_level >= 9) {
+        msr_log(msr, 9, "Received macro to resolve: %s", log_escape_nq_ex(mptmp, var->value, var->value_len));
+    }
+    data = apr_pstrndup(mptmp, var->value, var->value_len); /* IMP1 Are we modifying data anywhere? */
+    text_start = data;
+    // first loop - try to find all %{..} patterns as it exists
+    // start with the innermost one
+    int loopcnt = 1;
     do {
-        text_start = next_text_start;
-        p = strstr(text_start, "%");
-        if (p != NULL) {
-            char *var_name = NULL;
-            char *var_value = NULL;
+        // try to find the last one '%{' seq
+        char *last_open = NULL;
+        char *first_close = NULL;
+        while ((text_start = strstr(text_start, "%{")) != NULL) {
+            last_open = text_start;
+            text_start += 2; // move to next possible '%{'
+        }
+        // check if we found a macro open
+        // if yes, find the first close char
+        if (last_open != NULL) {
+            first_close = strchr(last_open + 2, '}');
+            if (first_close != NULL) {
+                // we have the macro's position, split the string into three pieces
+                // here_starts_the_var_%{tx.macro}_last_part
+                // ^------------------^
+                //                     ^---------^
+                //                                ^--------^
+                // create an array to store parts
+                arr = apr_array_make(mptmp, 16, sizeof(msc_string *));
 
-            if ((*(p + 1) == '{')&&(*(p + 2) != '\0')) {
-                char *var_start = p + 2;
-
-                t = var_start;
-                while((*t != '\0')&&(*t != '}')) t++;
-                if (*t == '}') {
-                    /* Named variable. */
-
-                    var_name = apr_pstrmemdup(mptmp, var_start, t - var_start);
-                    q = strstr(var_name, ".");
-                    if (q != NULL) {
-                        var_value = q + 1;
-                        *q = '\0';
-                    }
-
-                    next_text_start = t + 1; /* *t was '}' */
-                } else {
-                    /* Warn about a possiblly forgotten '}' */
-                    if (msr->txcfg->debuglog_level >= 9) {
-                        msr_log(msr, 9, "Warning: Possibly unterminated macro: \"%s\"",
-                            log_escape_ex(mptmp, var_start - 2, t - var_start + 2));
-                    }
-
-                    next_text_start = t; /* *t was '\0' */
+                // create a variable from the macro
+                char *var_name = NULL;
+                char *var_value = NULL;
+                var_name = apr_pstrmemdup(mptmp, last_open + 2, first_close - last_open - 2);
+                q = strstr(var_name, ".");
+                if (q != NULL) {
+                    var_value = q + 1;
+                    *q = '\0';
                 }
-            }
 
-            if (var_name != NULL) {
-                char *my_error_msg = NULL;
-                msre_var *var_generated = NULL;
-                msre_var *var_resolved = NULL;
+                // resolve the macro
+                if (var_name != NULL) {
+                    char *my_error_msg = NULL;
+                    msre_var *var_generated = NULL;
+                    msre_var *var_resolved = NULL;
 
-                /* Add the text part before the macro to the array. */
-                part = (msc_string *)apr_pcalloc(mptmp, sizeof(msc_string));
-                if (part == NULL) return -1;
-                part->value_len = p - text_start;
-                part->value = apr_pstrmemdup(mptmp, text_start, part->value_len);
-                *(msc_string **)apr_array_push(arr) = part;
-
-                /* Resolve the macro and add that to the array. */
-                var_resolved = msre_create_var_ex(mptmp, msr->modsecurity->msre, var_name, var_value,
-                    msr, &my_error_msg);
-                if (var_resolved != NULL) {
-                    var_generated = generate_single_var(msr, var_resolved, NULL, rule, mptmp);
-                    if (var_generated != NULL) {
-                        part = (msc_string *)apr_pcalloc(mptmp, sizeof(msc_string));
-                        if (part == NULL) return -1;
-                        part->value_len = var_generated->value_len;
-                        part->value = (char *)var_generated->value;
+                    /* Add the text part before the macro to the array. */
+                    part = (msc_string *)apr_pcalloc(mptmp, sizeof(msc_string));
+                    if (part == NULL) return -1;
+                    part->value_len = last_open - data;
+                    if (part->value_len > 0) {
+                        part->value = apr_pstrmemdup(mptmp, data, part->value_len);
                         *(msc_string **)apr_array_push(arr) = part;
                         if (msr->txcfg->debuglog_level >= 9) {
+                            msr_log(msr, 9, "Macro's prefix in round #%d: %s", loopcnt, log_escape_nq_ex(mptmp, part->value, part->value_len));
+                        }
+                    }
+
+                    /* Resolve the macro and add that to the array. */
+                    var_resolved = msre_create_var_ex(mptmp, msr->modsecurity->msre, var_name, var_value,
+                        msr, &my_error_msg);
+                    if (var_resolved != NULL) {
+                        var_generated = generate_single_var(msr, var_resolved, NULL, rule, mptmp);
+                        if (var_generated != NULL) {
+                            part = (msc_string *)apr_pcalloc(mptmp, sizeof(msc_string));
+                            if (part == NULL) return -1;
+                            part->value_len = var_generated->value_len;
+                            part->value = (char *)var_generated->value;
+                            *(msc_string **)apr_array_push(arr) = part;
                             msr_log(msr, 9, "Resolved macro %%{%s%s%s} to: %s",
                                 var_name,
                                 (var_value ? "." : ""),
                                 (var_value ? var_value : ""),
                                 log_escape_nq_ex(mptmp, part->value, part->value_len));
                         }
+                    } else {
+                        if (msr->txcfg->debuglog_level >= 4) {
+                            msr_log(msr, 4, "Failed to resolve macro %%{%s%s%s}: %s",
+                                var_name,
+                                (var_value ? "." : ""),
+                                (var_value ? var_value : ""),
+                                my_error_msg);
+                        }
                     }
                 } else {
-                    if (msr->txcfg->debuglog_level >= 4) {
-                        msr_log(msr, 4, "Failed to resolve macro %%{%s%s%s}: %s",
-                            var_name,
-                            (var_value ? "." : ""),
-                            (var_value ? var_value : ""),
-                            my_error_msg);
+                    /* We could not identify a valid macro so add it as text.
+                       This part remained from previous implementation, probably it's not needed here,
+                       won't be executed ever */
+                    part = (msc_string *)apr_pcalloc(mptmp, sizeof(msc_string));
+                    if (part == NULL) return -1;
+                    part->value_len = last_open - data + 1; /* len(text)+len("%") */
+                    part->value = apr_pstrmemdup(mptmp, data, part->value_len);
+                    *(msc_string **)apr_array_push(arr) = part;
+                }
+
+                // last part
+                part = (msc_string *)apr_pcalloc(mptmp, sizeof(msc_string));
+                part->value = apr_pstrdup(mptmp, first_close + 1);
+                part->value_len = strlen(part->value);
+                if (part->value_len > 0) {
+                    *(msc_string **)apr_array_push(arr) = part;
+                    if (msr->txcfg->debuglog_level >= 9) {
+                        msr_log(msr, 9, "Macro's suffix in round #%d: %s", loopcnt, log_escape_nq_ex(mptmp, part->value, part->value_len));
                     }
                 }
-            } else {
-                /* We could not identify a valid macro so add it as text. */
-                part = (msc_string *)apr_pcalloc(mptmp, sizeof(msc_string));
-                if (part == NULL) return -1;
-                part->value_len = p - text_start + 1; /* len(text)+len("%") */
-                part->value = apr_pstrmemdup(mptmp, text_start, part->value_len);
-                *(msc_string **)apr_array_push(arr) = part;
 
-                next_text_start = p + 1;
+                if (arr->nelts > 0) {
+                    tvar = apr_palloc(mptmp, sizeof(msc_string));
+                    memset(tvar, '\0', sizeof(msc_string));
+                    /* Figure out the required size for the string. */
+                    tvar->value_len = 0;
+                    for(i = 0; i < arr->nelts; i++) {
+                        part = ((msc_string **)arr->elts)[i];
+                        tvar->value_len += part->value_len;
+                    }
+
+                    /* Allocate the string. */
+                    tvar->value = apr_palloc(msr->mp, tvar->value_len + 1);
+                    if (tvar->value == NULL) return -1;
+
+                    /* Combine the parts. */
+                    offset = 0;
+                    for(i = 0; i < arr->nelts; i++) {
+                        if (part->value_len > 0) {
+                            part = ((msc_string **)arr->elts)[i];
+                            memcpy((char *)(tvar->value + offset), part->value, part->value_len);
+                            offset += part->value_len;
+                        }
+                    }
+                    tvar->value[offset] = '\0';
+                    lasttvar = tvar;
+                    data = apr_pstrdup(mptmp, tvar->value);
+                    text_start = data;
+                }
             }
-        } else {
-            /* Text part. */
-            part = (msc_string *)apr_pcalloc(mptmp, sizeof(msc_string));
-            part->value = apr_pstrdup(mptmp, text_start);
-            part->value_len = strlen(part->value);
-            *(msc_string **)apr_array_push(arr) = part;
+            else {  // no close '}', can't resolve macro
+                msr_log(msr, 9, "Warning: Possibly unterminated macro: \"%s\"",
+                        log_escape_ex(mptmp, last_open, strlen(last_open)));
+                text_start = NULL;
+                return -1;
+            }
         }
-    } while (p != NULL);
-
-    /* If there's more than one member of the array that
-     * means there was at least one macro present. Combine
-     * text parts into a single string now.
-     */
-    if (arr->nelts > 1) {
-        /* Figure out the required size for the string. */
-        var->value_len = 0;
-        for(i = 0; i < arr->nelts; i++) {
-            part = ((msc_string **)arr->elts)[i];
-            var->value_len += part->value_len;
+        else {
+            // no other macro was found, exit from the loop
+            text_start = NULL;
         }
 
-        /* Allocate the string. */
-        var->value = apr_palloc(msr->mp, var->value_len + 1);
-        if (var->value == NULL) return -1;
+    } while (text_start != NULL);
 
-        /* Combine the parts. */
-        offset = 0;
-        for(i = 0; i < arr->nelts; i++) {
-            part = ((msc_string **)arr->elts)[i];
-            memcpy((char *)(var->value + offset), part->value, part->value_len);
-            offset += part->value_len;
-        }
-        var->value[offset] = '\0';
+    if (lasttvar != NULL) {
+        msr_log(msr, 9, "Resolved macro: '%s' to '%s'",
+            var->value,
+            log_escape_ex(mptmp, lasttvar->value, lasttvar->value_len));
+        var->value_len = lasttvar->value_len;
+        var->value = apr_pstrndup(msr->mp, lasttvar->value, lasttvar->value_len);
     }
-
     return 1;
 }
 

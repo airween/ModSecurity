@@ -89,3 +89,25 @@
 		GET => "http://$ENV{SERVER_NAME}:$ENV{SERVER_PORT}/test.txt?test=value",
 	),
 },
+{
+	type => "rule",
+	comment => "SecRule (chain) with nested macro",
+	conf => qq(
+	    SecRuleEngine On
+	    SecDebugLog $ENV{DEBUG_LOG}
+	    SecDebugLogLevel 9
+	    SecAction "id:10000,phase:1,t:none,setvar:tx.10001_counter=1,setvar:tx.10001_counter2=1"
+	    SecRule ARGS "\@rx (\\\d+)=(\\\d+)" "id:10001,phase:2,deny,nolog,t:none,capture,setvar:'tx.10001_%{tx.10001_counter}_lval=%{tx.1}',setvar:'tx.10001_%{tx.10001_counter}_rval=%{tx.2}',setvar:'tx.10001_counter=+1',chain"
+	    SecRule TX:/10001_\\\d+_lval/ "\@streq %{tx.10001_%{tx.10001_counter2}_rval}" "setvar:'tx.10001_counter2=+1'"
+	),
+	match_log => {
+	    error => [ qr/ModSecurity: /, 1 ],
+	    debug => [ qr/Set variable "tx.10001_1_rval" to "1"\..*Resolved macro \%\{tx.10001_counter\} to: 2.*Set variable "tx.10001_2_rval" to "1"/s, 1 ],
+	},
+	match_response => {
+	    status => qr/^403$/,
+	},
+	request => new HTTP::Request(
+	    GET => "http://$ENV{SERVER_NAME}:$ENV{SERVER_PORT}/test.txt?a=1=1&b=2=1",
+	),
+},
